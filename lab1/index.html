@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>ЛР №1: Цветовые модели</title>
+</head>
+<body>
+    <h2>Цветовые модели: CMYK — RGB — HSV</h2>
+
+    <table border="1" cellpadding="15" cellspacing="0" width="100%">
+        <tr valign="top">
+            <!-- Палитра -->
+            <td width="25%">
+                <fieldset>
+                    <legend><b>Палитра</b></legend>
+                    <canvas id="swatch" width="200" height="50"></canvas><br><br>
+                    Цвет: <input type="color" id="picker" value="#2563EB"><br><br>
+                    <canvas id="sv_canvas" width="200" height="140"></canvas>
+                </fieldset>
+            </td>
+
+            <!-- CMYK -->
+            <td width="25%">
+                <fieldset>
+                    <legend><b>CMYK</b></legend>
+                    <p>C: <input type="range" id="c_r" min="0" max="100" step="0.1" oninput="sync('cmyk','c',this.value)"> <b id="c_val"></b></p>
+                    <p>M: <input type="range" id="m_r" min="0" max="100" step="0.1" oninput="sync('cmyk','m',this.value)"> <b id="m_val"></b></p>
+                    <p>Y: <input type="range" id="y_r" min="0" max="100" step="0.1" oninput="sync('cmyk','y',this.value)"> <b id="y_val"></b></p>
+                    <p>K: <input type="range" id="k_r" min="0" max="100" step="0.1" oninput="sync('cmyk','k',this.value)"> <b id="k_val"></b></p>
+                </fieldset>
+            </td>
+
+            <!-- RGB -->
+            <td width="25%">
+                <fieldset>
+                    <legend><b>RGB</b></legend>
+                    <p>R: <input type="range" id="r_r" min="0" max="255" step="1" oninput="sync('rgb','r',this.value)"> <b id="r_val"></b></p>
+                    <p>G: <input type="range" id="g_r" min="0" max="255" step="1" oninput="sync('rgb','g',this.value)"> <b id="g_val"></b></p>
+                    <p>B: <input type="range" id="b_r" min="0" max="255" step="1" oninput="sync('rgb','b',this.value)"> <b id="b_val"></b></p>
+                </fieldset>
+            </td>
+
+            <!-- HSV -->
+            <td width="25%">
+                <fieldset>
+                    <legend><b>HSV</b></legend>
+                    <p>H: <input type="range" id="h_r" min="0" max="360" step="0.1" oninput="sync('hsv','h',this.value)"> <b id="h_val"></b></p>
+                    <p>S: <input type="range" id="s_r" min="0" max="100" step="0.1" oninput="sync('hsv','s',this.value)"> <b id="s_val"></b></p>
+                    <p>V: <input type="range" id="v_r" min="0" max="100" step="0.1" oninput="sync('hsv','v',this.value)"> <b id="v_val"></b></p>
+                </fieldset>
+            </td>
+        </tr>
+    </table>
+
+    <script>
+        let state = { rgb: {r:37, g:99, b:235}, cmyk: {c:84.3, m:57.9, y:0, k:7.8}, hsv: {h:221.2, s:84.3, v:92.2}, hex: "#2563EB" };
+
+        async function requestPython(source, values) {
+            const res = await fetch('/convert', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ source, values, prev_h: state.hsv.h })
+            });
+            state = await res.json();
+            render();
+        }
+
+        function sync(model, key, val) {
+            state[model][key] = parseFloat(val);
+            requestPython(model, state[model]);
+        }
+
+        document.getElementById('picker').oninput = e => {
+            const hex = e.target.value;
+            requestPython('rgb', { r: parseInt(hex.slice(1,3), 16), g: parseInt(hex.slice(3,5), 16), b: parseInt(hex.slice(5,7), 16) });
+        };
+
+        const cvs = document.getElementById('sv_canvas');
+        const ctx = cvs.getContext('2d');
+        cvs.onmousedown = e => {
+            const rect = cvs.getBoundingClientRect();
+            const s = Math.max(0, Math.min(100, ((e.clientX - rect.left) / cvs.width) * 100));
+            const v = Math.max(0, Math.min(100, 100 - ((e.clientY - rect.top) / cvs.height) * 100));
+            requestPython('hsv', { h: state.hsv.h, s, v });
+        };
+
+        function render() {
+            // Обновляем ползунки и текст рядом с ними
+            ['cmyk', 'rgb', 'hsv'].forEach(m => {
+                for (const k in state[m]) {
+                    document.getElementById(k + '_r').value = state[m][k];
+                    document.getElementById(k + '_val').innerText = state[m][k];
+                }
+            });
+            document.getElementById('picker').value = state.hex;
+            
+            // Отрисовка образца цвета
+            const sw = document.getElementById('swatch').getContext('2d');
+            sw.fillStyle = state.hex;
+            sw.fillRect(0, 0, 200, 50);
+
+            // Отрисовка палитры Насыщенность/Яркость
+            ctx.fillStyle = `hsl(${state.hsv.h}, 100%, 50%)`;
+            ctx.fillRect(0, 0, 200, 140);
+            
+            const gW = ctx.createLinearGradient(0, 0, 200, 0);
+            gW.addColorStop(0, '#fff'); gW.addColorStop(1, 'transparent');
+            ctx.fillStyle = gW; ctx.fillRect(0, 0, 200, 140);
+            
+            const gB = ctx.createLinearGradient(0, 0, 0, 140);
+            gB.addColorStop(0, 'transparent'); gB.addColorStop(1, '#000');
+            ctx.fillStyle = gB; ctx.fillRect(0, 0, 200, 140);
+        }
+        render();
+    </script>
+</body>
+</html>
